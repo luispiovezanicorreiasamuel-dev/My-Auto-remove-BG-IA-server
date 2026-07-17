@@ -2,12 +2,16 @@ import os
 import io
 import socket
 from flask import Flask, request, send_file, render_template_string
-from rembg import remove
+from rembg import remove, new_session
 from PIL import Image
 
+# Inicia o Flask
 app = Flask(__name__)
 
-# Ler o arquivo index.html automaticamente
+# Criamos a sessão com o modelo 'u2netp' (o mais leve possível para economizar RAM)
+# Isso evita o erro de "Ran out of memory"
+sessao_leve = new_session("u2netp")
+
 def ler_html():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
@@ -26,41 +30,28 @@ def upload():
         return "Nenhuma imagem selecionada", 400
 
     try:
-        # 1. Abre a imagem enviada pelo celular
-        img_original = Image.open(file.stream)
+        # Abre a imagem enviada
+        img = Image.open(file.stream)
         
-        # 2. Remove o fundo
-        img_sem_fundo = remove(img_original)
+        # Redimensiona a imagem para no máximo 1000x1000 pixels
+        # Isso garante que fotos muito pesadas não estourem a RAM de 512MB
+        img.thumbnail((1000, 1000))
         
-        # 3. Cria o fundo branco do mesmo tamanho
-        fundo_branco = Image.new("RGBA", img_sem_fundo.size, "WHITE")
-        fundo_branco.paste(img_sem_fundo, (0, 0), img_sem_fundo)
+        # Remove o fundo usando a sessão leve que criamos acima
+        img_sem_fundo = remove(img, session=sessao_leve)
         
-        # 4. Converte para salvar em JPG
-        imagem_final = fundo_branco.convert("RGB")
+        # Salva o resultado no formato PNG em um buffer
+        output = io.BytesIO()
+        img_sem_fundo.save(output, format='PNG')
+        output.seek(0)
         
-        # 5. Salva na memória para enviar de volta
-        img_io = io.BytesIO()
-        imagem_final.save(img_io, 'JPEG', quality=95)
-        img_io.seek(0)
-        
-        return send_file(img_io, mimetype='image/jpeg')
+        return send_file(output, mimetype='image/png')
+    
     except Exception as e:
-        return f"Erro no processamento: {str(e)}", 500
+        # Se algo der errado, retorna o erro para você saber o motivo
+        return f"Erro ao processar imagem: {str(e)}", 500
 
-def obter_ip_local():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('8.8.8.8', 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return IP
-
+# Esta parte garante que o Render saiba qual porta usar
 if __name__ == '__main__':
-    # A nuvem define a porta automaticamente pela variável de ambiente PORT
     porta = int(os.environ.get("PORT", 5000))
-    # Rodamos em 0.0.0.0 para aceitar conexões externas da nuvem
     app.run(host='0.0.0.0', port=porta)
