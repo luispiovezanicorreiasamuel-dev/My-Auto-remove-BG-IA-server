@@ -1,0 +1,242 @@
+    <!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recortador IA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #131314;
+            color: #e3e3e3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 500;
+            background: linear-gradient(45deg, #4285f4, #9b51e0, #e91e63);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #8e918f;
+            font-size: 0.95rem;
+        }
+
+        .preview-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 500px;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .preview-box {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background-color: #1e1f20;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 2px dashed #444746;
+            transition: all 0.3s ease;
+        }
+
+        .preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .placeholder-text {
+            color: #8e918f;
+            font-size: 0.95rem;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(19, 19, 20, 0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 24px;
+            color: #4285f4;
+            font-weight: bold;
+        }
+
+        .input-area {
+            width: 100%;
+            max-width: 550px;
+            background-color: #1e1f20;
+            border-radius: 32px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .input-placeholder {
+            color: #8e918f;
+            font-size: 0.95rem;
+            margin-left: 8px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #c4c7c5;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .icon-btn:hover {
+            background-color: #2f3032;
+        }
+
+        .icon-btn.send-btn {
+            color: #a8c7fa;
+        }
+
+        .icon-btn.send-btn:disabled {
+            color: #444746;
+            cursor: not-allowed;
+        }
+
+        #file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Recortador IA</h1>
+        <p>Insira uma foto para limpar o fundo instantaneamente</p>
+    </header>
+
+    <div class="preview-container">
+        <div class="preview-box" id="preview-box">
+            <p class="placeholder-text" id="placeholder-text">Nenhuma imagem selecionada</p>
+            <img id="image-display" style="display: none;" src="" alt="Preview">
+        </div>
+        <div class="loading-overlay" id="loading-overlay">
+            <span>Processando com a IA...</span>
+        </div>
+    </div>
+
+    <div class="input-area">
+        <label for="file-input" class="icon-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        </label>
+        <input type="file" id="file-input" accept="image/*">
+        
+        <span class="input-placeholder" id="status-text">Toque no ícone para escolher...</span>
+
+        <button class="icon-btn send-btn" id="send-btn" disabled>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const sendBtn = document.getElementById('send-btn');
+        const statusText = document.getElementById('status-text');
+        const imageDisplay = document.getElementById('image-display');
+        const placeholderText = document.getElementById('placeholder-text');
+        const previewBox = document.getElementById('preview-box');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        let imagemSelecionada = null;
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                imagemSelecionada = file;
+                statusText.innerText = "Imagem pronta. Toque na seta.";
+                sendBtn.disabled = false;
+                
+                // Mostrar preview da imagem original
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    placeholderText.style.display = 'none';
+                    imageDisplay.src = event.target.result;
+                    imageDisplay.style.display = 'block';
+                    previewBox.style.border = 'none';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        sendBtn.addEventListener('click', async function() {
+            if (!imagemSelecionada) return;
+
+            const formData = new FormData();
+            formData.append('image', imagemSelecionada);
+
+            loadingOverlay.style.display = 'flex';
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Erro ao processar');
+
+                const blob = await response.blob();
+                const urlResultado = URL.createObjectURL(blob);
+
+                // Atualiza a tela com a imagem recortada vinda do Python
+                imageDisplay.src = urlResultado;
+                statusText.innerText = "Pronto! Toque segure na foto para salvar.";
+                
+            } catch (error) {
+                alert("Erro ao processar imagem no servidor Python.");
+                statusText.innerText = "Erro ao processar.";
+                sendBtn.disabled = false;
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
