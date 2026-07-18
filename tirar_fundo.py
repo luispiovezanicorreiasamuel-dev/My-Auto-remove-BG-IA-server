@@ -51,7 +51,10 @@ def upload():
         # Se algo der errado, retorna o erro para você saber o motivo
         return f"Erro ao processar imagem: {str(e)}", 500
 
-# Esta parte garante que o Render saiba qual porta usar
+# Substitua o final do seu arquivo por este bloco:
 if __name__ == '__main__':
-    porta = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=porta)
+    # O Render define a porta através de uma variável de ambiente chamada PORT
+    # Se ela não existir, usamos a 5000 como padrão
+    port = int(os.environ.get("PORT", 5000))
+    # O host deve ser '0.0.0.0' para o Render conseguir acessar
+    app.run(host='0.0.0.0', port=port)
