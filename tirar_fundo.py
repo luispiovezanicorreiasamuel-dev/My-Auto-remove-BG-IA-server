@@ -1,6 +1,5 @@
 import os
 import io
-import socket
 from flask import Flask, request, send_file, render_template_string
 from rembg import remove, new_session
 from PIL import Image
@@ -8,8 +7,7 @@ from PIL import Image
 # Inicia o Flask
 app = Flask(__name__)
 
-# Criamos a sessão com o modelo 'u2netp' (o mais leve possível para economizar RAM)
-# Isso evita o erro de "Ran out of memory"
+# Criamos a sessão com o modelo 'u2netp' (o mais leve)
 sessao_leve = new_session("u2netp")
 
 def ler_html():
@@ -30,31 +28,29 @@ def upload():
         return "Nenhuma imagem selecionada", 400
 
     try:
-        # Abre a imagem enviada
-        img = Image.open(file.stream)
+        # Abre a imagem e força conversão para RGB para evitar erros de cor
+        img = Image.open(file.stream).convert('RGB')
         
-        # Redimensiona a imagem para no máximo 1000x1000 pixels
-        # Isso garante que fotos muito pesadas não estourem a RAM de 512MB
-        img.thumbnail((1000, 1000))
+        # Reduz resolução para 600x600 para garantir que caiba na memória RAM do Render
+        img.thumbnail((600, 600))
         
-        # Remove o fundo usando a sessão leve que criamos acima
+        # Remove o fundo
         img_sem_fundo = remove(img, session=sessao_leve)
         
-        # Salva o resultado no formato PNG em um buffer
+        # Converte para RGBA para garantir a transparência do PNG
+        img_final = img_sem_fundo.convert('RGBA')
+        
+        # Salva o resultado no formato PNG com otimização
         output = io.BytesIO()
-        img_sem_fundo.save(output, format='PNG')
+        img_final.save(output, format='PNG', optimize=True)
         output.seek(0)
         
         return send_file(output, mimetype='image/png')
     
     except Exception as e:
-        # Se algo der errado, retorna o erro para você saber o motivo
+        # Retorna o erro específico se falhar
         return f"Erro ao processar imagem: {str(e)}", 500
 
-# Substitua o final do seu arquivo por este bloco:
 if __name__ == '__main__':
-    # O Render define a porta através de uma variável de ambiente chamada PORT
-    # Se ela não existir, usamos a 5000 como padrão
     port = int(os.environ.get("PORT", 5000))
-    # O host deve ser '0.0.0.0' para o Render conseguir acessar
     app.run(host='0.0.0.0', port=port)
